@@ -67,11 +67,7 @@ class PollenvarselFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
                         user_input[CONF_PHONE_NUMBER]][1]
 
             return await self.async_step_complete_new_entry()
-            
-            return self.async_create_entry(
-                title=device_id.title(),
-                data=user_input,
-            )
+
 
         if self._task:              # Are we creating a new Linked Device?
 
@@ -115,7 +111,7 @@ class PollenvarselFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         self.user_input[CONF_TOKEN_TYPE] = self._linked_token_type
 
         return self.async_create_entry(
-            title=self.user_input[CONF_DEVICE_ID].title(),
+            title=f"{self.user_input[CONF_DEVICE_ID]} (via {self.user_input[CONF_PHONE_NUMBER]})",
             data=self.user_input,
         )
 
