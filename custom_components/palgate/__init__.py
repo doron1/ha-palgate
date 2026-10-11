@@ -88,7 +88,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _register_services(hass)
 
     # Try to cleanup orphaned legacy multi-gate device (idempotent, safe to call multiple times)
-    await _cleanup_orphaned_device(hass)
+    await _cleanup_orphaned_device(hass, entry)
 
     return True
 
@@ -268,7 +268,7 @@ def _unregister_services(hass: HomeAssistant) -> None:
 # Helpers
 # ------------------------------------------------------------------
 
-async def _cleanup_orphaned_device(hass: HomeAssistant) -> None:
+async def _cleanup_orphaned_device(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Remove the old shared 'Palgate' device if it's orphaned."""
 
     device_registry = dr.async_get(hass)
@@ -276,15 +276,23 @@ async def _cleanup_orphaned_device(hass: HomeAssistant) -> None:
 
     _LOGGER.debug("Checking for orphaned legacy 'palgate' device...")
 
-    old_device = device_registry.async_get_device(
-        identifiers={(PALGATE_DOMAIN, "palgate")}
-    )
+    legacy_identifier = (PALGATE_DOMAIN, "palgate")
+
+    # Newer Home Assistant keeps a device's identifiers unique per config entry only,
+    # so the lookup must be scoped to this entry. async_get_device is deprecated there
+    # (and ambiguous); it is still the only option on older Home Assistant versions.
+    if hasattr(device_registry, "async_get_device_by_identifier"):
+        old_device = device_registry.async_get_device_by_identifier(
+            legacy_identifier, entry.entry_id
+        )
+    else:
+        old_device = device_registry.async_get_device(identifiers={legacy_identifier})
 
     if not old_device:
         _LOGGER.debug("No legacy 'palgate' device found")
         return
 
-    _LOGGER.debug(f"Found legacy (multi-gate) device: {old_device.id}, config_entries: {old_device.config_entries}")
+    _LOGGER.debug(f"Found legacy (multi-gate) device: {old_device.id}")
 
     entities = er.async_entries_for_device(entity_registry, old_device.id)
 
