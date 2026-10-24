@@ -242,6 +242,7 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
 
         # Show form with progress spinner until linking completes
         return self.async_show_progress(
+            step_id="create_linked_device",
             progress_action="wait_for_qr",
             progress_task=self._task,
             description_placeholders={
