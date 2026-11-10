@@ -1,7 +1,7 @@
 # Palgate Home Assistant integration
 
 ![GitHub Release](https://img.shields.io/github/v/release/doron1/ha-palgate?style=flat-square)
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+<!-- Goodbye HACS! [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration) -->
 
 This is a Home Assistant integration for Palgate gate controllers. It creates a gate/cover entity in Home Assistant, allowing for gate control from HA dashboards and automations.
 
@@ -10,13 +10,12 @@ This is an unofficial integration, use at your own risk.
 
 ## Installation
 
-1. Ensure that [HACS](https://hacs.xyz/) is installed
-2. ~~Add this repository as a custom repository~~ (Not needed as of July 2026 - integration is now included in HACS default set of integrations)
-3. Search for and install the "Palgate" integration
-4. Restart Home Assistant
-5. Configure the `Palgate` integration
+1. Open `Settings` --> `Marketplace`
+2. Search for and install the `Palgate` integration
+3. Restart Home Assistant
+4. Configure the `Palgate` integration
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=doron1&repository=ha-palgate&category=Integration)
+[![Open your Home Assistant instance and open a repository in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=doron1&repository=ha-palgate&category=Integration)
 
 ## Configuration
 
@@ -46,7 +45,7 @@ Using the Relay Mode selector entity (disabled by default), a user with the prop
 - Hold Open (gate opens and remains in the open position, disabling normal open/close control)
 - Hold Close (gate closes and remains in the closed position, disabling normal open/close control)
 
-This entity (new for v1.6 of this integration) is initially created as _disabled_. To use it, you will need to:
+This entity is initially created as _disabled_. To use it, you will need to:
 1. Explicitly enable the Relay Mode entity from the device page
 2. Make sure the user (phone) that this gate is linked through, has the special permission for this action (on Palgate app, admin user: Gate settings -> Manager Options -> Users -> Selected user -> "Latch Output 1").\
 ➡️If the linked phone's user does not have the right permission, the selector entity will be marked `unavailable`. Once permission is granted, it will become operational.
