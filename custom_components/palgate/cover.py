@@ -34,7 +34,7 @@ async def async_setup_entry(
     COVERS: tuple[CoverEntityDescription, ...] = (
         CoverEntityDescription(
             key=device_id,
-            name=device_id,
+            name=None,
             icon="mdi:boom-gate-outline",
             device_class=CoverDeviceClass.GARAGE,
         ),
@@ -49,6 +49,8 @@ async def async_setup_entry(
 
 class PalgateCover(CoverEntity):
     """Define a Palgate entity."""
+
+    _attr_has_entity_name = True
 
     def __init__(
         self,
