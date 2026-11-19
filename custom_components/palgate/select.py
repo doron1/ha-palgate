@@ -17,6 +17,9 @@ from .const import *
 
 _LOGGER = logging.getLogger(__name__)
 
+# HA reads this module-level name for the platform's poll interval
+SCAN_INTERVAL = SELECT_SCAN_INTERVAL
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -40,7 +43,6 @@ class PalgateRelayModeSelect(SelectEntity):
     # _attr_icon                            = "mdi:boom-gate-up"
     _attr_entity_registry_enabled_default = False
     translation_key                       = "relay_mode"
-    scan_interval                         = SCAN_INTERVAL
 
     def __init__(
         self,

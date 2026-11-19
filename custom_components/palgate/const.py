@@ -23,7 +23,7 @@ SECONDS_OPEN = 45
 SECONDS_TO_CLOSE = 35
 
 # Polling interval, applicable to SELECT platform only (disabled by default)
-SCAN_INTERVAL = timedelta(minutes=1)
+SELECT_SCAN_INTERVAL = timedelta(minutes=1)
 
 # API base URL
 BASE_URL = "https://api1.pal-es.com/v1/bt"
