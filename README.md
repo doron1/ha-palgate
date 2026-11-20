@@ -29,6 +29,7 @@ Once linking is successful, you will be guided to complete the gate selection an
 If your Palgate account is authorized to control more than one gate, you can select and configure any/all of them, one by one. You can also link other phones (accounts) to this integration, and configure the gates those phones are authorized for, the same way.
 
 ## Advanced Configuration
+To have the integration reflect gate state more accurately during open/close (see [note](#Notes) below), you can use these optional configuration parameters:
 1. `Time (sec) gate takes to open` - The time it takes for the gate to open, in seconds (default 25)
 2. `Time (sec) gate remains open` - The time the gate remains open, in seconds (default 45)
 3. `Time (sec) gate takes to close` - The time it takes for the gate to close, in seconds (default 35)
