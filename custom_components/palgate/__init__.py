@@ -17,6 +17,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 import logging
 
 from .api import PalgateApiClient
+from .redact import Redacted, init_redaction, redact_tag
 from .const import DOMAIN as PALGATE_DOMAIN
 from .const import *
 
@@ -54,7 +55,9 @@ def _get_api(hass: HomeAssistant, entity_id: str) -> PalgateApiClient:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Palgate from a config entry."""
 
-    _LOGGER.debug(f"Setting up Palgate config entry: {entry.entry_id}, device_id: {entry.data[CONF_DEVICE_ID]}")
+    await init_redaction(hass)
+    _LOGGER.debug("Setting up Palgate config entry: %s, device_id: %s",
+                  entry.entry_id, Redacted(entry.data[CONF_DEVICE_ID], redact_tag))
 
     # Shared API client - used by platforms and services
     api = PalgateApiClient(

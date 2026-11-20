@@ -21,6 +21,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.exceptions import HomeAssistantError 
 
 from .pylgate.token_generator import generate_token
+from .redact import Redacted, init_redaction, redact_url
 from .const import DOMAIN as PALGATE_DOMAIN
 from .const import *
 
@@ -214,7 +215,7 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
                     "Device list response was not valid JSON"
                 ) from exc
 
-        _LOGGER.debug("Device list response: %s", payload)
+        _LOGGER.debug("Device list response: %s", Redacted(payload))
         return payload.get("devices", [])
 
     async def async_step_complete_new_entry(
@@ -248,6 +249,7 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         ) -> FlowResult:
 
         if not self.linking_code:
+            await init_redaction(self.hass)
             self.linking_code = str(uuid.uuid4())
 
             # Generate a QR code for Palgate Device Linking 
@@ -307,8 +309,9 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
                 _LOGGER.error(_text)
                 raise HomeAssistantError("Response from vendor not valid JSON")
 
-        _LOGGER.debug(f"Linked Device response received. URL: {resp.url}, Response headers: {dict(resp.headers)}")
-        _LOGGER.debug(f"Response payload: {_response}")
+        _LOGGER.debug("Linked Device response received. URL: %s, Response headers: %s",
+                      Redacted(resp.url, redact_url), dict(resp.headers))
+        _LOGGER.debug("Response payload: %s", Redacted(_response))
 
         self._linked_phone_number = _response["user"]["id"]
         self._linked_token = _response["user"]["token"]

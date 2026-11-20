@@ -10,6 +10,7 @@ import logging
 from homeassistant.exceptions import HomeAssistantError
 
 from .pylgate.token_generator import generate_token
+from .redact import Redacted, redact_url
 from .const import *
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
@@ -99,14 +100,14 @@ class PalgateApiClient:
     async def _api_request(self, url: str) -> dict:
         """Execute a GET to any Palgate API URL, handle HTTP and API errors, return parsed JSON."""
         async with self._session.get(url=url, headers=self._headers()) as resp:
-            _LOGGER.debug(f"API request. URL: {resp.url}")
+            _LOGGER.debug("API request. URL: %s", Redacted(resp.url, redact_url))
             if resp.status == HTTPStatus.UNAUTHORIZED:
                 raise HomeAssistantError(f"Unauthorized. {resp.status}")
             if resp.status != HTTPStatus.OK:
                 raise HomeAssistantError(f"Not OK {resp.status} {await resp.text()}")
             reply = await resp.json()
 
-        _LOGGER.debug(f"API response: {reply}")
+        _LOGGER.debug("API response: %s", Redacted(reply))
         if reply.get("err"):
             raise HomeAssistantError(f"API Request Error: {reply.get('msg') or reply.get('err')}")
         
@@ -115,14 +116,14 @@ class PalgateApiClient:
     async def _api_post(self, url: str, body: dict) -> dict:
         """POST to a Palgate API URL with a JSON body."""
         async with self._session.post(url=url, headers=self._headers(), json=body) as resp:
-            _LOGGER.debug(f"API POST {resp.url}")
+            _LOGGER.debug("API POST %s", Redacted(resp.url, redact_url))
             if resp.status == HTTPStatus.UNAUTHORIZED:
                 raise HomeAssistantError(f"Unauthorized. {resp.status}")
             if resp.status != HTTPStatus.OK:
                 raise HomeAssistantError(f"Not OK {resp.status} {await resp.text()}")
             reply = await resp.json()
 
-        _LOGGER.debug(f"API response: {reply}")
+        _LOGGER.debug("API response: %s", Redacted(reply))
         if reply.get("err"):
             raise HomeAssistantError(f"API Request Error: {reply.get('msg') or reply.get('err')}")
         return reply
@@ -130,14 +131,14 @@ class PalgateApiClient:
     async def _api_put(self, url: str, body: dict) -> dict:
         """PUT to a Palgate API URL with a JSON body."""
         async with self._session.put(url=url, headers=self._headers(), json=body) as resp:
-            _LOGGER.debug(f"API PUT {resp.url}")
+            _LOGGER.debug("API PUT %s", Redacted(resp.url, redact_url))
             if resp.status == HTTPStatus.UNAUTHORIZED:
                 raise HomeAssistantError(f"Unauthorized. {resp.status}")
             if resp.status != HTTPStatus.OK:
                 raise HomeAssistantError(f"Not OK {resp.status} {await resp.text()}")
             reply = await resp.json()
 
-        _LOGGER.debug(f"API response: {reply}")
+        _LOGGER.debug("API response: %s", Redacted(reply))
         if reply.get("err"):
             raise HomeAssistantError(f"API Request Error: {reply.get('msg') or reply.get('err')}")
         return reply
@@ -145,14 +146,14 @@ class PalgateApiClient:
     async def _api_delete(self, url: str) -> dict:
         """DELETE a Palgate API URL."""
         async with self._session.delete(url=url, headers=self._headers()) as resp:
-            _LOGGER.debug(f"API DELETE {resp.url}")
+            _LOGGER.debug("API DELETE %s", Redacted(resp.url, redact_url))
             if resp.status == HTTPStatus.UNAUTHORIZED:
                 raise HomeAssistantError(f"Unauthorized. {resp.status}")
             if resp.status != HTTPStatus.OK:
                 raise HomeAssistantError(f"Not OK {resp.status} {await resp.text()}")
             reply = await resp.json()
 
-        _LOGGER.debug(f"API response: {reply}")
+        _LOGGER.debug("API response: %s", Redacted(reply))
         if reply.get("err"):
             raise HomeAssistantError(f"API Request Error: {reply.get('msg') or reply.get('err')}")
         return reply
