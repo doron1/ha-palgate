@@ -80,6 +80,8 @@ class PalgateCover(CoverEntity):
         self._name1: str | None = None
         self._customname1: str | None = None
         self._customname2: str | None = None
+        self._name: str | None = None
+        self._custom_name: str | None = None
 
     @property
     def is_opening(self) -> Optional[bool]:
@@ -108,6 +110,9 @@ class PalgateCover(CoverEntity):
             "name1":           self._name1,
             "customname1":     self._customname1,
             "customname2":     self._customname2,
+            "output":          self.api.output_num,
+            "name":            self._name,
+            "custom_name":     self._custom_name,
         }
 
     async def async_added_to_hass(self) -> None:
@@ -123,6 +128,8 @@ class PalgateCover(CoverEntity):
             self._name1           = device.get("name1")
             self._customname1     = device.get("customName1")
             self._customname2     = device.get("customName2")
+            self._name            = device.get(f"name{self.api.output_num}")
+            self._custom_name     = device.get(f"customName{self.api.output_num}")
             self.async_write_ha_state()
         except Exception as exc:
             _LOGGER.warning("Failed to fetch device info: %s", exc)

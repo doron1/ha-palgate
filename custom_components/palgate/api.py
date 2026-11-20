@@ -68,6 +68,11 @@ class PalgateApiClient:
 
         return device_id, output_num
 
+    @property
+    def output_num(self) -> int:
+        """Relay output this client controls (1 unless ':N' suffix)."""
+        return self._parsed_device_id()[1]
+
     def _open_url(self) -> str:
         """Build the base open-gate URL."""
         device_id, output_num = self._parsed_device_id()
