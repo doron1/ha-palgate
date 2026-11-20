@@ -234,6 +234,7 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         self._abort_if_unique_id_configured()
 
         self.user_input[CONF_DEVICE_ID]    = device_id
+        self.user_input[CONF_GATE_NAME]    = display_name
         self.user_input[CONF_PHONE_NUMBER] = self._linked_phone_number
         self.user_input[CONF_TOKEN]        = self._linked_token
         self.user_input[CONF_TOKEN_TYPE]   = self._linked_token_type
