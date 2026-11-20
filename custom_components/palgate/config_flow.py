@@ -8,6 +8,7 @@ import asyncio
 import uuid
 import pyqrcode
 import json
+import re
 from http import HTTPStatus
 
 import voluptuous as vol
@@ -109,8 +110,8 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
                 return self.async_abort(reason="cannot_fetch_devices")
 
             self._unconfigured_devices = [
-                d for d in all_devices
-                if not await self._async_existing_devices(d["id"])
+                gate for d in all_devices for gate in self._gates(d)
+                if not await self._async_existing_devices(gate["id"])
             ]
 
         # -- Case 1: nothing left to configure ------------------------------
@@ -138,7 +139,7 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
             {
                 "value": d["id"],
                 "label": " | ".join(filter(None, [
-                    d.get("customName1") or d.get("name1") or d["id"],
+                    d["gate_name"],
                     d.get("address"),
                 ])),
             }
@@ -158,6 +159,30 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
             errors={},
             description_placeholders={"phone": self._linked_phone_number},
         )
+
+    @staticmethod
+    def _gates(device: dict) -> list[dict]:
+        """Split a controller into one gate per output the user may operate.
+
+        Output 1 keeps the bare controller id (as in existing entries),
+        output N > 1 gets an ':N' suffix, which the API client understands.
+        """
+        outputs = sorted(
+            int(m[1]) for key, val in device.items()
+            if val and (m := re.fullmatch(r"output(\d+)", key))
+        )
+        return [
+            {
+                **device,
+                "id": device["id"] if n == 1 else f"{device['id']}:{n}",
+                "gate_name": (
+                    device.get(f"customName{n}")
+                    or device.get(f"name{n}")
+                    or device["id"]
+                ),
+            }
+            for n in outputs
+        ]
 
     async def _fetch_devices(self) -> list[dict]:
         """Call the Palgate API and return the full list of devices."""
@@ -203,7 +228,7 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
                 return self.async_abort(reason=_exc.args[0])
 
         device_id    = device["id"]
-        display_name = device.get("customName1") or device.get("name1") or device_id
+        display_name = device["gate_name"]
 
         await self.async_set_unique_id(device_id)
         self._abort_if_unique_id_configured()
