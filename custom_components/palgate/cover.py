@@ -144,3 +144,5 @@ class PalgateCover(CoverEntity):
         except Exception as exc:
             _LOGGER.warning("Gate operation failed. %s", exc)
             raise ServiceValidationError(str(exc)) from exc
+
+    async_close_cover = async_stop_cover   # Cover "close" behaves like "stop"
