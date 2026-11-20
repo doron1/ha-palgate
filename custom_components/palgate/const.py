@@ -6,6 +6,7 @@ PLATFORMS = ["cover", "select"]
 
 CONF_PHONE_NUMBER = "phone_number"
 CONF_TOKEN_TYPE = "token_type"
+CONF_GATE_NAME = "gate_name"
 
 CONF_ADVANCED = "advanced_options"
 CONF_SECONDS_TO_OPEN = "seconds_to_open"

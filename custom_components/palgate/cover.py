@@ -43,7 +43,11 @@ async def async_setup_entry(
     api = hass.data[PALGATE_DOMAIN][entry.entry_id][DATA_API]
         
     async_add_entities(
-        PalgateCover(api, description, device_id) for description in COVERS
+        PalgateCover(
+            api, description, device_id,
+            entry.data.get(CONF_GATE_NAME, device_id),
+        )
+        for description in COVERS
     )
 
 
@@ -57,6 +61,7 @@ class PalgateCover(CoverEntity):
         api: PalgateApiClient,
         description: CoverEntityDescription,
         device_id: str,
+        gate_name: str,
     ) -> None:
         """Initialize."""
 
@@ -66,7 +71,7 @@ class PalgateCover(CoverEntity):
         self._attr_unique_id = f"{description.key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(PALGATE_DOMAIN, device_id)},
-            name=device_id,
+            name=gate_name,
             manufacturer="Palgate",
             model="Gate Controller",
         )
