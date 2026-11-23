@@ -65,6 +65,7 @@
     },
     "abort": {
       "already_configured_device": "היחידה הוגדרה כבר",
+      "cannot_link_device": "קישור לשרת נכשל, נסו שנית.",
       "cannot_fetch_devices": "קבלת רשימת השערים מהשרת נכשלה, נסו שנית.",
       "no_devices_found": "אין עוד שערים שמוגדרים לטלפון {phone}.",
       "reconfigure_successful": "השער הוגדר בהצלחה"

@@ -50,7 +50,7 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
             self.user_input = user_input
 
             if user_input[CONF_PHONE_NUMBER] == CONF_LINK_NEW_DEVICE:
-                return await self.async_step_create_linked_device(
+                return await self._async_link_new_device(
                     user_input=user_input,
                 )
             else:
@@ -74,7 +74,7 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
 
             _LOGGER.debug("Link task not done. Keep spinning")
             # Task not done, keep waiting
-            return await self.async_step_create_linked_device(
+            return await self._async_link_new_device(
                 user_input=user_input,
             )
 
@@ -101,6 +101,12 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         - Exactly one unconfigured device -> skip device selection UI, complete configuration
         - Multiple unconfigured devices -> show gate select dropdown
         """
+
+        # Linking failed. A progress step can't abort directly (HA only
+        # allows progress or progress_done after progress), so check here
+        if self._task and (_exc := self._task.exception()):
+            _LOGGER.error(_exc)
+            return self.async_abort(reason="cannot_link_device")
 
         # Fetch and filter on first entry to this step
         if not hasattr(self, "_unconfigured_devices"):
@@ -222,12 +228,6 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         self, user_input: dict[str, Any] | None = None, device: dict | None = None
         ) -> FlowResult:
 
-        if self._task:
-            if _exc := self._task.exception():
-
-                _LOGGER.error(_exc)
-                return self.async_abort(reason=_exc.args[0])
-
         device_id    = device["id"]
         display_name = device["gate_name"]
 
@@ -245,7 +245,7 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
             data=self.user_input,
         )
 
-    async def async_step_create_linked_device(
+    async def _async_link_new_device(
         self, user_input: dict[str, Any] | None = None
         ) -> FlowResult:
 
@@ -270,7 +270,8 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
 
         # Show form with progress spinner until linking completes
         return self.async_show_progress(
-            step_id="create_linked_device",
+            # step_id is the step HA returns to when done - we are at step "user"
+            step_id="user",
             progress_action="wait_for_qr",
             progress_task=self._task,
             description_placeholders={

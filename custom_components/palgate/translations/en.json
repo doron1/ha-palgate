@@ -65,6 +65,7 @@
     },
     "abort": {
       "already_configured_device": "Device is already configured",
+      "cannot_link_device": "Linking the device failed. Please try again.",
       "cannot_fetch_devices": "Could not retrieve gate list from server. Please try again.",
       "no_devices_found": "No more configurable gates for phone {phone}.",
       "reconfigure_successful": "Gate entry reconfigured succefully"
