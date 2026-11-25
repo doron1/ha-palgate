@@ -9,9 +9,10 @@ import re
 from unittest.mock import patch
 
 import pytest
+from aiohttp import ClientError
 from homeassistant import config_entries
 from homeassistant.const import CONF_DEVICE_ID, CONF_TOKEN
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from pytest_homeassistant_custom_component.test_util.aiohttp import (
     MockLongPollSideEffect,
@@ -289,3 +290,81 @@ def _translated_abort_reasons():
 
     path = Path(__file__).parents[1] / "custom_components/palgate/translations/en.json"
     return json.loads(path.read_text(encoding="utf-8"))["config"]["abort"]
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"status": 401, "text": "Unauthorized"},
+        {"status": 500, "text": "Server error"},
+        {"text": "this is not json"},
+        {"json": {"status": "ok"}},
+    ],
+    ids=["unauthorized", "server_error", "invalid_json", "missing_fields"],
+)
+async def test_link_new_device_errors_abort(hass, aioclient_mock, response):
+    """Whatever the vendor answers to the linking poll, a bad answer aborts."""
+    result, poll = await _start_link(hass, aioclient_mock)
+    poll.queue_response(**response)
+    result = await _finish_progress(hass)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "cannot_link_device"
+    assert hass.config_entries.async_entries(DOMAIN) == []
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"status": 401, "text": "Unauthorized"},
+        {"status": 500, "text": "Server error"},
+        {"text": "this is not json"},
+        {"exc": ClientError()},
+    ],
+    ids=["unauthorized", "server_error", "invalid_json", "connection_error"],
+)
+async def test_fetch_devices_errors_abort(hass, aioclient_mock, response):
+    """A failing gate list call aborts with cannot_fetch_devices."""
+    _add_entry(hass)
+    aioclient_mock.get(DEVICES_URL, **response)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _user_input(PHONE)
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "cannot_fetch_devices"
+
+
+async def test_select_device_rejects_unknown_choice(hass, aioclient_mock):
+    """A gate that was not offered is rejected before the flow looks it up."""
+    _add_entry(hass, device_id="OTHER", unique_id="OTHER")
+    _mock_devices(
+        aioclient_mock,
+        [
+            {"id": "GATE1", "output1": True, "name1": "Gate"},
+            {"id": "GATE2", "output1": True, "name1": "Garage"},
+        ],
+    )
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], _user_input(PHONE)
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "select_device"
+
+    with pytest.raises(InvalidData):
+        await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_DEVICE_ID: "NOT_OFFERED"}
+        )
+
+    # The flow is still usable after the rejected choice
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_DEVICE_ID: "GATE2"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_DEVICE_ID] == "GATE2"
