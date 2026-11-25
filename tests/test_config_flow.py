@@ -260,9 +260,6 @@ async def test_reconfigure_cannot_change_device_id(hass):
     assert entry.data[CONF_DEVICE_ID] == "GATE1"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="abort reason already_configured is not in translations"
-)
 async def test_duplicate_unique_id_aborts_with_translated_reason(hass, aioclient_mock):
     """The abort reason must exist in the translations.
 

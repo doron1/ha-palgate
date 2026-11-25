@@ -40,6 +40,19 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         self._task: asyncio.Task[None] | None = None
         self.linking_code: str = None
 
+        # Flow state, filled in as the steps run
+        self.user_input: dict[str, Any] = {}
+        self.current_linked_devices: dict[str, list] = {}
+        self._linked_phone_number: str | None = None
+        self._linked_token: str | None = None
+        self._linked_token_type: int | None = None
+        self._unconfigured_devices: list[dict] | None = None
+        self._qr_img_str: str | None = None
+
+        # Reconfigure only
+        self.entry: config_entries.ConfigEntry | None = None
+        self.device_id: str | None = None
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
         ) -> FlowResult:
@@ -99,7 +112,8 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         Three potential routes:
         - No unconfigured devices (none left) -> abort
         - Exactly one unconfigured device -> skip device selection UI, complete configuration
-        - Multiple unconfigured devices -> show gate select dropdown
+        - Multiple unconfigured devices -> show gate select dropdown, then
+          complete configuration with the chosen one
         """
 
         # Linking failed. A progress step can't abort directly (HA only
@@ -109,7 +123,7 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
             return self.async_abort(reason="cannot_link_device")
 
         # Fetch and filter on first entry to this step
-        if not hasattr(self, "_unconfigured_devices"):
+        if self._unconfigured_devices is None:
             try:
                 all_devices = await self._fetch_devices()
             except Exception as exc:
@@ -128,43 +142,60 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
                         "phone": self._linked_phone_number
                         })
 
-        # -- Case 2: exactly one device — skip the selection step -----------
+        # -- Case 2: exactly one device - skip the selection step -----------
         if len(self._unconfigured_devices) == 1:
-            return await self.async_step_complete_new_entry(
-                device=self._unconfigured_devices[0]
-            )
+            device = self._unconfigured_devices[0]
 
-        # -- Case 3: multiple devices — present a dropdown ------------------
-        if user_input is not None:
-            chosen = next(
+        # -- Case 3: multiple devices - user picked one from the dropdown ---
+        elif user_input is not None:
+            device = next(
                 d for d in self._unconfigured_devices
                 if d["id"] == user_input[CONF_DEVICE_ID]
             )
-            return await self.async_step_complete_new_entry(device=chosen)
 
-        options = [
-            {
-                "value": d["id"],
-                "label": " | ".join(filter(None, [
-                    d["gate_name"],
-                    d.get("address"),
-                ])),
-            }
-            for d in self._unconfigured_devices
-        ]
+        # -- Case 4: multiple devices - present a dropdown ------------------
+        else:
+            options = [
+                {
+                    "value": d["id"],
+                    "label": " | ".join(filter(None, [
+                        d["gate_name"],
+                        d.get("address"),
+                    ])),
+                }
+                for d in self._unconfigured_devices
+            ]
 
-        return self.async_show_form(
-            step_id="select_device",
-            data_schema=vol.Schema({
-                vol.Required(CONF_DEVICE_ID): selector({
-                    "select": {
-                        "mode": "dropdown",
-                        "options": options,
-                    }
+            return self.async_show_form(
+                step_id="select_device",
+                data_schema=vol.Schema({
+                    vol.Required(CONF_DEVICE_ID): selector({
+                        "select": {
+                            "mode": "dropdown",
+                            "options": options,
+                        }
+                    }),
                 }),
-            }),
-            errors={},
-            description_placeholders={"phone": self._linked_phone_number},
+                errors={},
+                description_placeholders={"phone": self._linked_phone_number},
+            )
+
+        # -- Chosen device (cases 2 and 3): create the config entry ---------
+        device_id    = device["id"]
+        display_name = device["gate_name"]
+
+        await self.async_set_unique_id(device_id)
+        self._abort_if_unique_id_configured(error="already_configured_device")
+
+        self.user_input[CONF_DEVICE_ID]    = device_id
+        self.user_input[CONF_GATE_NAME]    = display_name
+        self.user_input[CONF_PHONE_NUMBER] = self._linked_phone_number
+        self.user_input[CONF_TOKEN]        = self._linked_token
+        self.user_input[CONF_TOKEN_TYPE]   = self._linked_token_type
+
+        return self.async_create_entry(
+            title=f"{display_name} (via {self._linked_phone_number})",
+            data=self.user_input,
         )
 
     @staticmethod
@@ -223,27 +254,6 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
 
         _LOGGER.debug("Device list response: %s", Redacted(payload))
         return payload.get("devices", [])
-
-    async def async_step_complete_new_entry(
-        self, user_input: dict[str, Any] | None = None, device: dict | None = None
-        ) -> FlowResult:
-
-        device_id    = device["id"]
-        display_name = device["gate_name"]
-
-        await self.async_set_unique_id(device_id)
-        self._abort_if_unique_id_configured()
-
-        self.user_input[CONF_DEVICE_ID]    = device_id
-        self.user_input[CONF_GATE_NAME]    = display_name
-        self.user_input[CONF_PHONE_NUMBER] = self._linked_phone_number
-        self.user_input[CONF_TOKEN]        = self._linked_token
-        self.user_input[CONF_TOKEN_TYPE]   = self._linked_token_type
-
-        return self.async_create_entry(
-            title=f"{display_name} (via {self._linked_phone_number})",
-            data=self.user_input,
-        )
 
     async def _async_link_new_device(
         self, user_input: dict[str, Any] | None = None
@@ -318,7 +328,6 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         self._linked_phone_number = _response["user"]["id"]
         self._linked_token = _response["user"]["token"]
         self._linked_token_type = _response["secondary"]
-        self._linked_status = _response["status"]
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
