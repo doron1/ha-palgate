@@ -58,9 +58,14 @@ def _mock_devices(aioclient_mock, devices):
     aioclient_mock.get(DEVICES_URL, json={"devices": devices})
 
 
-async def _start_link(hass, aioclient_mock):
-    """Start a Link New Device flow, return (flow result, long-poll mock)."""
+async def _start_link(hass, aioclient_mock, response=None):
+    """Start a Link New Device flow, return (flow result, long-poll mock).
+
+    With a response, the vendor has already answered when the flow starts.
+    """
     poll = MockLongPollSideEffect()
+    if response:
+        poll.queue_response(**response)
     aioclient_mock.get(re.compile(re.escape(INIT_URL) + ".*"), side_effect=poll)
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -365,3 +370,29 @@ async def test_select_device_rejects_unknown_choice(hass, aioclient_mock):
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_DEVICE_ID] == "GATE2"
+
+
+@pytest.mark.parametrize(
+    ("response", "created"),
+    [
+        ({"json": LINK_OK}, True),
+        ({"status": 401, "text": "Unauthorized"}, False),
+    ],
+    ids=["success", "failure"],
+)
+async def test_link_new_device_vendor_answers_at_once(
+    hass, aioclient_mock, response, created
+):
+    """The vendor's answer is already there when the spinner is first shown."""
+    _mock_devices(aioclient_mock, [{"id": "GATE1", "output1": True, "name1": "Gate"}])
+
+    result, _ = await _start_link(hass, aioclient_mock, response)
+    assert result["type"] is FlowResultType.SHOW_PROGRESS
+
+    result = await _finish_progress(hass)
+    if created:
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+    else:
+        assert result["type"] is FlowResultType.ABORT
+        assert result["reason"] == "cannot_link_device"
+    assert bool(hass.config_entries.async_entries(DOMAIN)) is created

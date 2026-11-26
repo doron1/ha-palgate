@@ -298,11 +298,6 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         _url = INIT_URL +\
             f'{self.linking_code}'
 
-        # Work around an apparent HASS quirk, - when show_progress is called
-        # and the task is already done (e.g. exception), show_progress
-        # spins forever. Wait a sec to let show_progress kick in before us :-(
-        await asyncio.sleep(1)
-
         async with _session.get(
             url=_url
             ) as resp:
