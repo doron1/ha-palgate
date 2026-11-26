@@ -5,6 +5,7 @@ flow code, including the progress task, runs inside Home Assistant's real
 flow manager.
 """
 
+import logging
 import re
 from unittest.mock import patch
 
@@ -18,6 +19,7 @@ from pytest_homeassistant_custom_component.test_util.aiohttp import (
     MockLongPollSideEffect,
 )
 
+from custom_components.palgate import redact
 from custom_components.palgate.const import (
     CONF_ADVANCED,
     CONF_GATE_NAME,
@@ -97,7 +99,7 @@ async def test_link_new_device_creates_entry(hass, aioclient_mock):
 
     result, poll = await _start_link(hass, aioclient_mock)
     assert result["type"] is FlowResultType.SHOW_PROGRESS
-    assert result["step_id"] == "user"
+    assert result["step_id"] == "link_device"
 
     # Vendor reports the QR code was scanned
     poll.queue_response(json=LINK_OK)
@@ -396,3 +398,107 @@ async def test_link_new_device_vendor_answers_at_once(
         assert result["type"] is FlowResultType.ABORT
         assert result["reason"] == "cannot_link_device"
     assert bool(hass.config_entries.async_entries(DOMAIN)) is created
+
+
+async def test_link_new_device_asked_again_while_waiting(hass, aioclient_mock):
+    """Asking again while the vendor has not answered keeps the same spinner.
+
+    The frontend can do this, for example after a page reload. It must not
+    start a second linking attempt.
+    """
+    result, poll = await _start_link(hass, aioclient_mock)
+    assert result["type"] is FlowResultType.SHOW_PROGRESS
+
+    again = await hass.config_entries.flow.async_configure(result["flow_id"])
+    assert again["type"] is FlowResultType.SHOW_PROGRESS
+    assert again["step_id"] == "link_device"
+    assert again["description_placeholders"] == result["description_placeholders"]
+    assert aioclient_mock.call_count == 1  # still the one vendor request
+
+    poll.queue_response(json=LINK_OK)
+    _mock_devices(aioclient_mock, [{"id": "GATE1", "output1": True, "name1": "Gate"}])
+    result = await _finish_progress(hass)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+@pytest.mark.parametrize("source", ["user", "reconfigure"])
+async def test_flow_keys_log_redaction_like_entry_setup(hass, monkeypatch, source):
+    """Redaction tags in flow logs match those of the running integration.
+
+    Flows do not go through async_setup_entry, so each flow keys the tags
+    itself. The same value must get the same tag either way.
+    """
+    entry = _add_entry(hass)
+    context = {"source": config_entries.SOURCE_USER}
+    if source == "reconfigure":
+        context = {
+            "source": config_entries.SOURCE_RECONFIGURE,
+            "entry_id": entry.entry_id,
+        }
+
+    # The integration's way: init_redaction with the instance UUID
+    monkeypatch.setattr(redact, "_REDACT_KEY", b"unkeyed")
+    await redact.init_redaction(hass)
+    expected = redact.redact_tag("GATE1")
+
+    # The flow's way, starting from an unkeyed state
+    monkeypatch.setattr(redact, "_REDACT_KEY", b"unkeyed")
+    assert redact.redact_tag("GATE1") != expected
+    await hass.config_entries.flow.async_init(DOMAIN, context=context)
+    assert redact.redact_tag("GATE1") == expected
+
+
+async def test_flow_debug_logs_contain_no_secrets(hass, aioclient_mock, caplog):
+    """A whole link flow with debug logging never logs identifying values.
+
+    Uses distinctive values for everything that must stay out of shared logs:
+    phone number, token, device id, gate names, address and the linking code.
+    """
+    token = "ab12cd34ef56ab12cd34ef56ab12cd34"
+    _mock_devices(
+        aioclient_mock,
+        [
+            {
+                "id": "GATEXYZ789",
+                "output1": True,
+                "name1": "Front Gate",
+                "customName1": "Moms Gate",
+                "address": "12 Hidden Street",
+            }
+        ],
+    )
+    caplog.set_level(logging.DEBUG, logger="custom_components.palgate")
+
+    result, poll = await _start_link(hass, aioclient_mock)
+    poll.queue_response(
+        json={"status": "ok", "user": {"id": PHONE, "token": token}, "secondary": 1}
+    )
+    result = await _finish_progress(hass)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+    [linking_url] = [
+        str(call[1]) for call in aioclient_mock.mock_calls if INIT_URL in str(call[1])
+    ]
+    linking_code = linking_url.removeprefix(INIT_URL)
+    assert re.fullmatch(r"[0-9a-f-]{36}", linking_code)
+
+    # Only what our integration logged; getMessage() applies the redaction
+    logged = "\n".join(
+        record.getMessage()
+        for record in caplog.records
+        if record.name.startswith("custom_components.palgate")
+    )
+    # Not an empty pass: the flow did log its requests and responses
+    assert "Device list response" in logged
+    assert "<redacted" in logged
+
+    for secret in (
+        PHONE,
+        token,
+        "GATEXYZ789",
+        "Front Gate",
+        "Moms Gate",
+        "12 Hidden Street",
+        linking_code,
+    ):
+        assert secret not in logged, f"{secret!r} leaked into the debug log"

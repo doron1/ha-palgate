@@ -38,7 +38,7 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
     def __init__(self):
 
         self._task: asyncio.Task[None] | None = None
-        self.linking_code: str = None
+        self.linking_code: str | None = None
 
         # Flow state, filled in as the steps run
         self.user_input: dict[str, Any] = {}
@@ -58,14 +58,16 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         ) -> FlowResult:
         """Handle a flow initialized by the user."""
 
+        # Flows do not go through async_setup_entry, so key the log redaction
+        # here, before anything is logged. Cheap and safe to repeat
+        await init_redaction(self.hass)
+
         if user_input is not None:
 
             self.user_input = user_input
 
             if user_input[CONF_PHONE_NUMBER] == CONF_LINK_NEW_DEVICE:
-                return await self._async_link_new_device(
-                    user_input=user_input,
-                )
+                return await self.async_step_link_device()
             else:
                 self._linked_phone_number = user_input[CONF_PHONE_NUMBER]
                 self._linked_token = \
@@ -76,20 +78,6 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
                         user_input[CONF_PHONE_NUMBER]][1]
 
             return await self.async_step_select_device()
-
-        if self._task:              # Are we creating a new Linked Device?
-
-            if self._task.done():
-
-                return self.async_show_progress_done(
-                    next_step_id="select_device"
-                    )
-
-            _LOGGER.debug("Link task not done. Keep spinning")
-            # Task not done, keep waiting
-            return await self._async_link_new_device(
-                user_input=user_input,
-            )
 
         # Prepare form: Make a dict of all currently linked phones + tokens
         self.current_linked_devices = {}
@@ -255,12 +243,17 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         _LOGGER.debug("Device list response: %s", Redacted(payload))
         return payload.get("devices", [])
 
-    async def _async_link_new_device(
+    async def async_step_link_device(
         self, user_input: dict[str, Any] | None = None
         ) -> FlowResult:
+        """Link a new device: show the QR code and wait for the vendor.
+
+        This step is entered more than once: first from the user step, and
+        again by HA when the progress task is done (or when the frontend asks
+        again), so it handles all of those cases.
+        """
 
         if not self.linking_code:
-            await init_redaction(self.hass)
             self.linking_code = str(uuid.uuid4())
 
             # Generate a QR code for Palgate Device Linking 
@@ -278,10 +271,17 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
                 self._wait_device_linking()
                 )
 
+        elif self._task.done():
+            # Linking finished (or failed, select_device checks which)
+            return self.async_show_progress_done(next_step_id="select_device")
+
+        else:
+            _LOGGER.debug("Link task not done. Keep spinning")
+
         # Show form with progress spinner until linking completes
         return self.async_show_progress(
-            # step_id is the step HA returns to when done - we are at step "user"
-            step_id="user",
+            # step_id is the step HA returns to when done: this one
+            step_id="link_device",
             progress_action="wait_for_qr",
             progress_task=self._task,
             description_placeholders={
@@ -328,6 +328,8 @@ class PalgateFlowHandler(config_entries.ConfigFlow, domain=PALGATE_DOMAIN):
         self, user_input: dict[str, Any] | None = None
         ) -> FlowResult:
         """Handle a flow initialized by the user."""
+
+        await init_redaction(self.hass)  # Init log redaction
 
         if user_input is not None:
 
