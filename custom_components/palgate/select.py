@@ -14,6 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .api import PalgateApiClient, RELAY_MODES
 from .const import DOMAIN as PALGATE_DOMAIN
 from .const import *
+from .redact import Redacted, redact_tag
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class PalgateRelayModeSelect(SelectEntity):
     ) -> None:
         """Initialize."""
         self.api = api
+        self._device_id = device_id
         self._attr_unique_id   = f"{device_id}_relay_mode"
         self._attr_device_info = DeviceInfo(
             identifiers={(PALGATE_DOMAIN, device_id)},
@@ -65,7 +67,10 @@ class PalgateRelayModeSelect(SelectEntity):
             self._attr_available      = self.api.relay_mode_permitted
 
         except Exception as exc:
-            _LOGGER.error("Failed to fetch relay mode for %s: %s", self.unique_id, exc)
+            _LOGGER.error(
+                "Failed to fetch relay mode for %s: %s",
+                Redacted(self._device_id, redact_tag), exc,
+            )
             self._attr_available = False
 
     async def async_select_option(self, option: str) -> None:

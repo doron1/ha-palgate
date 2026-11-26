@@ -30,7 +30,8 @@ _warned = False
 _REDACT_KEY: bytes = os.urandom(16)  # fallback; replaced by init_redaction()
 _SECRET_KEYS = {"key", "token"}
 _TAGGED_KEYS = re.compile(
-    r"_?id|address|addresscoord|phone|pn|firstname|lastname|username|(custom)?name\d*",
+    r"_?id|user_?id|sn|address|addresscoord|phone|pn|firstname|lastname|username|"
+    r"(custom)?name\d*",
     re.IGNORECASE,
 )
 _URL_IDS = re.compile(r"(/(?:device|init)/|[?&](?:pn|id)=)([^/?&]+)")
